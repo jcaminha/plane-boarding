@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador de Embarque</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="top">
+  <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>
+  <div>
+    <h1>Simulador de Embarque</h1>
+    <p>Qual é a forma mais rápida de embarcar um avião? Coloque as estratégias para competir com os mesmos passageiros.</p>
+  </div>
+</header>
+
+<main class="layout">
+  <aside class="panel">
+    <section>
+      <h2>Aeronave</h2>
+      <label class="field">
+        <span>Fileiras <output id="rowsOut"></output></span>
+        <input type="range" id="rows" min="10" max="40" step="1">
+      </label>
+      <label class="field">
+        <span>Assentos por fileira</span>
+        <select id="perSide">
+          <option value="3">3 + 3</option>
+          <option value="2">2 + 2</option>
+        </select>
+      </label>
+    </section>
+
+    <section>
+      <h2>Passageiros</h2>
+      <label class="field">
+        <span>Ocupação <output id="occOut"></output></span>
+        <input type="range" id="occ" min="40" max="100" step="5">
+      </label>
+      <label class="field">
+        <span>Viajando em família <output id="famOut"></output></span>
+        <input type="range" id="fam" min="0" max="60" step="5">
+      </label>
+      <label class="field">
+        <span>Com bagagem de mão <output id="bagOut"></output></span>
+        <input type="range" id="bag" min="0" max="100" step="5">
+      </label>
+      <div class="field seed">
+        <label for="seed">Cenário nº</label>
+        <input type="number" id="seed" min="1" max="999999">
+        <button type="button" id="reroll" class="btn">Sortear</button>
+      </div>
+      <p id="paxSummary" class="summary"></p>
+    </section>
+
+    <section>
+      <h2>Regras</h2>
+      <label class="check"><input type="checkbox" id="keepGroups"><span>Famílias e casais embarcam juntos</span></label>
+      <label class="check"><input type="checkbox" id="preboard"><span>Famílias com crianças embarcam primeiro</span></label>
+    </section>
+
+    <section>
+      <h2>Estratégias na animação</h2>
+      <ul id="strategyList" class="strategies"></ul>
+      <button type="button" id="newStrategy" class="btn wide">+ Criar estratégia</button>
+    </section>
+  </aside>
+
+  <div class="content">
+    <div class="toolbar">
+      <button type="button" id="play" class="btn primary">Iniciar</button>
+      <button type="button" id="reset" class="btn">Reiniciar</button>
+      <div class="seg" id="speed" role="group" aria-label="Velocidade">
+        <button type="button" data-v="2">2×</button>
+        <button type="button" data-v="10">10×</button>
+        <button type="button" data-v="30">30×</button>
+        <button type="button" data-v="90">90×</button>
+      </div>
+      <div class="seg" id="colorMode" role="group" aria-label="Cor dos passageiros">
+        <button type="button" data-v="kind">Cor por tipo</button>
+        <button type="button" data-v="order">Cor por ordem na fila</button>
+      </div>
+    </div>
+    <div class="legend" id="legend"></div>
+
+    <div id="stage"></div>
+
+    <section class="compare">
+      <div class="compare-head">
+        <div>
+          <h2>Comparação estatística</h2>
+          <p>Uma única animação pode ser sorte. Aqui cada estratégia embarca vários aviões com passageiros diferentes, sempre os mesmos para todas.</p>
+        </div>
+        <div class="compare-actions">
+          <select id="trials" aria-label="Número de simulações">
+            <option value="20">20 voos</option>
+            <option value="50" selected>50 voos</option>
+            <option value="200">200 voos</option>
+          </select>
+          <button type="button" id="runCompare" class="btn primary">Comparar todas</button>
+        </div>
+      </div>
+      <div class="bar-progress" id="compareProgress" hidden><i></i></div>
+      <div id="compareResult"></div>
+    </section>
+
+    <details class="model">
+      <summary>Como a simulação funciona</summary>
+      <ul>
+        <li>O corredor é uma fila única: ninguém ultrapassa ninguém. Cada pessoa anda até a sua fileira na própria velocidade (crianças e idosos são mais lentos; malas também atrasam).</li>
+        <li>Quem tem bagagem de mão para no corredor para guardá-la. Quanto mais cheio o bagageiro da fileira, mais demora; se estiver lotado, a mala vai para o espaço livre mais próximo, o que custa ainda mais tempo.</li>
+        <li>Quem precisa passar por alguém já sentado (janela com o corredor ocupado, por exemplo) espera os vizinhos se levantarem. Isso é contado como "troca de assento".</li>
+        <li>Crianças não levam mala no bagageiro; os adultos da família levam mais. Famílias e casais sentam em assentos vizinhos.</li>
+        <li>A ponte de embarque está sempre cheia: o tempo medido é o do avião, não o do portão.</li>
+      </ul>
+    </details>
+  </div>
+</main>
+
+<dialog id="editor">
+  <form method="dialog" id="editorForm">
+    <h2 id="editorTitle">Criar estratégia</h2>
+    <label class="field">
+      <span>Nome</span>
+      <input type="text" id="edName" maxlength="40" required>
+    </label>
+
+    <div class="seg" id="edType" role="group" aria-label="Como definir">
+      <button type="button" data-v="zones">Pintar grupos no mapa</button>
+      <button type="button" data-v="code">Escrever fórmula</button>
+    </div>
+
+    <div id="edZones">
+      <p class="hint">Escolha um grupo e pinte os assentos (clique e arraste). O grupo 1 embarca primeiro. Clique no número da fileira ou na letra do assento para pintar a linha inteira.</p>
+      <div class="palette" id="edPalette"></div>
+      <div class="paint-wrap"><div id="edGrid" class="paint"></div></div>
+      <label class="field inline">
+        <span>Dentro de cada grupo</span>
+        <select id="edWithin">
+          <option value="random">ordem aleatória</option>
+          <option value="back">do fundo para a frente</option>
+          <option value="front">da frente para o fundo</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="edCode" hidden>
+      <p class="hint">Corpo de uma função JavaScript que recebe o passageiro <code>p</code> e devolve um número. <strong>Quem tem o menor número embarca primeiro</strong>; empates são sorteados.</p>
+      <textarea id="edSource" spellcheck="false" rows="7"></textarea>
+      <p class="hint">
+        <code>p.row</code> fileira (1 = frente) · <code>p.fromWindow</code> 0 = janela, 1 = meio… · <code>p.isWindow</code> <code>p.isMiddle</code> <code>p.isAisle</code> ·
+        <code>p.side</code> 0 ou 1 · <code>p.bags</code> malas · <code>p.kind</code> 'adult', 'child' ou 'senior' · <code>p.groupSize</code> ·
+        <code>ctx.rows</code> <code>ctx.perSide</code> <code>ctx.random()</code>
+      </p>
+    </div>
+
+    <p id="edError" class="error" hidden></p>
+    <div class="dialog-actions">
+      <button type="button" id="edDelete" class="btn danger" hidden>Excluir</button>
+      <span class="spacer"></span>
+      <button type="button" id="edCancel" class="btn">Cancelar</button>
+      <button type="submit" id="edSave" class="btn primary">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="tip" class="tip" hidden></div>
+
+<script src="js/sim.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
